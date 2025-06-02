@@ -2,6 +2,7 @@
 """
 Script to fill in a Template.csv based on input Excel/CSV files
 Standalone version with own configuration
+Modified to create three rows per well with different channel combinations
 """
 
 import os
@@ -13,6 +14,7 @@ import pandas as pd
 import logging
 import re
 import datetime
+from send2trash import send2trash
 
 # Configure logging - only errors and warnings by default
 logging.basicConfig(
@@ -215,27 +217,125 @@ def create_template_header():
     ]
     return header_lines
 
-def get_template_row_template():
-    """Get a default template row structure."""
-    return [
-        "",  # Well - to be filled
-        "Yes",  # Perform Droplet Reading
-        "Direct Quantification (DQ)",  # ExperimentType
-        "",  # Sample description 1 - to be filled
-        "",  # Sample description 2 - to be filled
-        "",  # Sample description 3 - to be filled
-        "",  # Sample description 4 - to be filled
-        "Unknown",  # SampleType - to be filled
-        "ddPCR Supermix for Probes (No dUTP)",  # SupermixName
-        "Probe Mix Triplex",  # AssayType
-        "1",  # TargetName (Concentration)
-        "Unknown",  # TargetType
+def get_template_row_templates(well_id, sample_desc, additional_desc, control_type):
+    """
+    Get three different template rows for each well.
+    
+    Args:
+        well_id (str): Well identifier (e.g., A01)
+        sample_desc (str): Primary sample description
+        additional_desc (list): Additional sample descriptions
+        control_type (str): Sample control type (NegCtrl, PosCtrl, Unknown)
+        
+    Returns:
+        list: Three template rows for the well
+    """
+    # Common values for all three rows
+    common_values = {
+        "well": well_id, 
+        "droplet_reading": "Yes",
+        "experiment_type": "Copy Number Variation (CNV)",
+        "sample_desc_1": sample_desc,
+        "sample_desc_2": additional_desc[0],
+        "sample_desc_3": additional_desc[1],
+        "sample_desc_4": additional_desc[2],
+        "sample_type": control_type,
+        "supermix": "ddPCR Supermix for Probes (No dUTP)",
+        "assay_type": "Probe Mix Triplex",
+        "target_type": "Unknown",
+        "ref_copies": "",
+        "well_notes": "",
+        "plot": "False",
+        "conv_factor": ""
+    }
+    
+    # Create three different rows with channel combinations
+    row1 = [
+        common_values["well"],  # Well
+        common_values["droplet_reading"],  # Perform Droplet Reading
+        common_values["experiment_type"],  # ExperimentType
+        common_values["sample_desc_1"],  # Sample description 1
+        common_values["sample_desc_2"],  # Sample description 2
+        common_values["sample_desc_3"],  # Sample description 3
+        common_values["sample_desc_4"],  # Sample description 4
+        common_values["sample_type"],  # SampleType
+        common_values["supermix"],  # SupermixName
+        common_values["assay_type"],  # AssayType
+        "chr1",  # TargetName
+        common_values["target_type"],  # TargetType
+        "None",  # Signal Ch1
+        "HEX",  # Signal Ch2
+        common_values["ref_copies"],  # Reference Copies
+        common_values["well_notes"],  # Well Notes
+        common_values["plot"],  # Plot?
+        common_values["conv_factor"]  # RdqConversionFactor
+    ]
+    
+    row2 = [
+        common_values["well"],  # Well
+        common_values["droplet_reading"],  # Perform Droplet Reading
+        common_values["experiment_type"],  # ExperimentType
+        common_values["sample_desc_1"],  # Sample description 1
+        common_values["sample_desc_2"],  # Sample description 2
+        common_values["sample_desc_3"],  # Sample description 3
+        common_values["sample_desc_4"],  # Sample description 4
+        common_values["sample_type"],  # SampleType
+        common_values["supermix"],  # SupermixName
+        common_values["assay_type"],  # AssayType
+        "chr234",  # TargetName
+        common_values["target_type"],  # TargetType
         "FAM",  # Signal Ch1
         "HEX",  # Signal Ch2
-        "",  # Reference Copies
-        "",  # Well Notes
-        "False",  # Plot?
-        ""  # RdqConversionFactor
+        common_values["ref_copies"],  # Reference Copies
+        common_values["well_notes"],  # Well Notes
+        common_values["plot"],  # Plot?
+        common_values["conv_factor"]  # RdqConversionFactor
+    ]
+    
+    row3 = [
+        common_values["well"],  # Well
+        common_values["droplet_reading"],  # Perform Droplet Reading
+        common_values["experiment_type"],  # ExperimentType
+        common_values["sample_desc_1"],  # Sample description 1
+        common_values["sample_desc_2"],  # Sample description 2
+        common_values["sample_desc_3"],  # Sample description 3
+        common_values["sample_desc_4"],  # Sample description 4
+        common_values["sample_type"],  # SampleType
+        common_values["supermix"],  # SupermixName
+        common_values["assay_type"],  # AssayType
+        "chr5",  # TargetName
+        common_values["target_type"],  # TargetType
+        "FAM",  # Signal Ch1
+        "None",  # Signal Ch2
+        common_values["ref_copies"],  # Reference Copies
+        common_values["well_notes"],  # Well Notes
+        common_values["plot"],  # Plot?
+        common_values["conv_factor"]  # RdqConversionFactor
+    ]
+    
+    return [row1, row2, row3]
+
+def get_empty_template_row(well_id):
+    """Get an empty template row for a well."""
+    return [
+        well_id,  # Well
+        "No",     # Perform Droplet Reading
+        "",       # ExperimentType
+        "",       # Sample description 1
+        "",       # Sample description 2
+        "",       # Sample description 3
+        "",       # Sample description 4
+        "",       # SampleType
+        "",       # SupermixName
+        "",       # AssayType
+        "",       # TargetName
+        "",       # TargetType
+        "",       # Signal Ch1
+        "",       # Signal Ch2
+        "",       # Reference Copies
+        "",       # Well Notes
+        "",       # Plot?
+        ""        # RdqConversionFactor
     ]
 
 def detect_control_type(sample_name):
@@ -408,40 +508,15 @@ def process_template(input_file_path):
                 # Determine control type
                 control_type = detect_control_type(sample_desc)
                 
-                # Create row based on template with data
-                output_row = get_template_row_template()
+                # Create THREE rows for this well with different configurations
+                output_rows = get_template_row_templates(well_id, sample_desc, additional_desc, control_type)
                 
-                # Fill in the data
-                output_row[0] = well_id  # Well
-                output_row[3] = sample_desc  # Sample description 1
-                output_row[4] = additional_desc[0]  # Sample description 2
-                output_row[5] = additional_desc[1]  # Sample description 3
-                output_row[6] = additional_desc[2]  # Sample description 4
-                output_row[7] = control_type  # SampleType
+                # Add all three rows to output
+                output_lines.extend(output_rows)
             else:
                 # Create empty row
-                output_row = [
-                    well_id,  # Well
-                    "No",     # Perform Droplet Reading
-                    "",       # ExperimentType
-                    "",       # Sample description 1
-                    "",       # Sample description 2
-                    "",       # Sample description 3
-                    "",       # Sample description 4
-                    "",       # SampleType
-                    "",       # SupermixName
-                    "",       # AssayType
-                    "",       # TargetName
-                    "",       # TargetType
-                    "",       # Signal Ch1
-                    "",       # Signal Ch2
-                    "",       # Reference Copies
-                    "",       # Well Notes
-                    "",       # Plot?
-                    ""        # RdqConversionFactor
-                ]
-            
-            output_lines.append(output_row)
+                empty_row = get_empty_template_row(well_id)
+                output_lines.append(empty_row)
     
     # Create DataFrame and save
     import csv
@@ -454,13 +529,13 @@ def process_template(input_file_path):
     print(f"Template saved to: {output_file_path}")
     print("")
     
-    # Delete the input file only if the total rows is a multiple of 8
+    # Move the input file to trash only if the total rows is a multiple of 8
     if total_rows % 8 == 0:
         try:
-            os.remove(input_file_path)
+            send2trash(input_file_path)
         except Exception as e:
-            logger.error(f"Could not delete input file: {str(e)}")
-            print(f"Warning: Could not delete input file: {str(e)}")
+            logger.error(f"Could not move input file to trash: {str(e)}")
+            print(f"Warning: Could not move input file to trash: {str(e)}")
     else:
         print("Input file kept!")
         print("")

@@ -1,7 +1,7 @@
 import math
 
 # === Adjustable Variables ===
-num_targets = 5                             # Number of targets in multiplex
+num_targets = 8                             # Number of targets in multiplex
 detection_efficiency_percent = 50        # e.g., 50 means only half the copies are effectively detected
 haploid_genome_fg = 150.0 / 977.0 * 1e3     # A. thaliana haploid genome in fg
 num_droplets = 15_000                       # Typical droplet count
